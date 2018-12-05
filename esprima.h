@@ -62,6 +62,8 @@ namespace esprima {
     struct ForStatement;
     struct ForInStatement;
     struct DebuggerStatement;
+    struct ImportStatement;
+    struct ExportStatement;
     struct FunctionDeclaration;
     struct VariableDeclarator;
     struct VariableDeclaration;
@@ -108,6 +110,8 @@ namespace esprima {
         virtual void visit(ForStatement *node) = 0;
         virtual void visit(ForInStatement *node) = 0;
         virtual void visit(DebuggerStatement *node) = 0;
+        virtual void visit(ImportStatement *node) = 0;
+        virtual void visit(ExportStatement *node) = 0;
         virtual void visit(FunctionDeclaration *node) = 0;
         virtual void visit(VariableDeclarator *node) = 0;
         virtual void visit(VariableDeclaration *node) = 0;
@@ -153,6 +157,8 @@ namespace esprima {
         void visitChildren(ForStatement *node);
         void visitChildren(ForInStatement *node);
         void visitChildren(DebuggerStatement *node);
+        void visitChildren(ImportStatement *node);
+        void visitChildren(ExportStatement *node);
         void visitChildren(FunctionDeclaration *node);
         void visitChildren(VariableDeclarator *node);
         void visitChildren(VariableDeclaration *node);
@@ -352,6 +358,20 @@ namespace esprima {
         void accept(Visitor *visitor) { visitor->visit(this); }
     };
 
+    struct ImportStatement : Statement {
+        std::vector<Identifier *> dientifiers;
+        StringLiteral* source;
+        ImportStatement(Pool &pool) : Statement(pool) {}
+        void accept(Visitor *visitor) { visitor->visit(this); }
+    };
+    
+    struct ExportStatement : Statement {
+        std::vector<Identifier *> dientifiers;
+        Expression* exp;
+        ExportStatement(Pool &pool) : Statement(pool) {}
+        void accept(Visitor *visitor) { visitor->visit(this); }
+    };
+    
     struct Declaration : Statement {
         Declaration(Pool &pool) : Statement(pool) {}
     };
@@ -514,7 +534,7 @@ namespace esprima {
         BooleanLiteral(Pool &pool) : Literal(pool), value() {}
         void accept(Visitor *visitor) { visitor->visit(this); }
     };
-
+    
     struct ParseError {
         std::string description;
         int index;

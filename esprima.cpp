@@ -42,7 +42,7 @@ Poolable::Poolable(Pool &pool) : poolable(pool.first) {
 }
 
 namespace Token {
-    enum {
+    enum Type {
         BooleanLiteral = 1,
         EOF = 2,
         Identifier = 3,
@@ -116,7 +116,7 @@ static std::string format(std::string format, const std::string &arg0, const std
 }
 
 struct EsprimaToken : Poolable {
-    int type;
+    Token::Type type;
     std::string stringValue;
     double doubleValue;
     bool octal;
@@ -181,7 +181,6 @@ struct EsprimaParser {
             id == "enum" ||
             id == "export" ||
             id == "extends" ||
-            id == "import" ||
             id == "super";
     }
 
@@ -228,6 +227,7 @@ struct EsprimaParser {
             (id == "void") ||
             (id == "with") ||
             (id == "enum") ||
+            (id == "from") ||
             (id == "while") ||
             (id == "break") ||
             (id == "catch") ||
@@ -413,7 +413,8 @@ struct EsprimaParser {
     }
 
     EsprimaToken *scanIdentifier() {
-        int start, type;
+        int start;
+        Token::Type type;
         std::string id;
 
         start = index;
@@ -1343,6 +1344,20 @@ struct EsprimaParser {
             node->body = body;
             return node;
         }
+        
+        ImportStatement *createImportStatement(const std::vector<Identifier *>& ids, StringLiteral* source) {
+            ImportStatement *node = new ImportStatement(parser.pool);
+            node->dientifiers = ids;
+            node->source = source;
+            return node;
+        }
+
+        ExportStatement *createExportStatement(const std::vector<Identifier *>& ids, Expression* exp) {
+            ExportStatement *node = new ExportStatement(parser.pool);
+            node->dientifiers = ids;
+            node->exp = exp;
+            return node;
+        }
     };
 
     // Return true if there is a line terminator before the next token.
@@ -1564,6 +1579,13 @@ struct EsprimaParser {
         return wtf.close(delegate.createIdentifier(token->stringValue));
     }
 
+    Literal *parseLiteral() {
+        WrapTrackingFunction wtf(*this);
+        EsprimaToken *token = lex();
+        
+        return wtf.close(delegate.createLiteral(token));
+    }
+
     Property *parseObjectProperty() {
         WrapTrackingFunction wtf(*this);
         EsprimaToken *token;
@@ -1598,8 +1620,30 @@ struct EsprimaParser {
                 value = parsePropertyFunction(param, token);
                 return wtf.close(delegate.createProperty("set", key, value));
             }
-            expect(":");
-            value = parseAssignmentExpression();
+            if (match(":")) {
+                lex();
+                if (matchKeyword("function")) {
+                    lex();
+                    expect("(");
+                    token = lookahead;
+                    while (!match(")")) {
+                        if (lookahead->type != Token::Identifier) {
+                            throwUnexpected(lex());
+                        }
+                        param.push_back(parseVariableIdentifier());
+                    }
+                    expect(")");
+                    value = parsePropertyFunction(param, token);
+                }
+                else {
+                    value = parseAssignmentExpression();
+                }
+            }
+            else {
+                value = delegate.createIdentifier(token->stringValue);
+                value->range[0] = id->range[0]; value->range[1] = id->range[1];
+                value->loc = id->loc;
+            }
             return wtf.close(delegate.createProperty("init", id, value));
         }
         if (token->type == Token::EOF || token->type == Token::Punctuator) {
@@ -2728,7 +2772,7 @@ struct EsprimaParser {
 
     Statement *parseStatement() {
         WrapTrackingFunction wtf(*this);
-        int type = lookahead->type;
+        Token::Type type =lookahead->type;
         Expression *expr;
         Statement *labeledBody;
         std::string key;
@@ -2780,6 +2824,10 @@ struct EsprimaParser {
                 return wtf.close(parseWhileStatement());
             if (value == "with")
                 return wtf.close(parseWithStatement());
+            if (value == "import")
+                return wtf.close(parseImportStatement());
+            if (value == "export")
+                return wtf.close(parseExportStatement());
         }
 
         expr = parseExpression();
@@ -3036,6 +3084,59 @@ struct EsprimaParser {
         return wtf.close(delegate.createFunctionExpression(id, params, body));
     }
 
+    ImportStatement *parseImportStatement() {
+        WrapTrackingFunction wtf(*this);
+        
+        expectKeyword("import");
+        std::vector<Identifier*> ids;
+        StringLiteral* srcfile = nullptr;
+
+        if (lookahead->type == Token::StringLiteral) {
+            srcfile = (StringLiteral*)parseLiteral();
+        }
+        else if (lookahead->type == Token::Identifier) {
+            ids.push_back(parseVariableIdentifier());
+            expectKeyword("from");
+            srcfile = (StringLiteral*)parseLiteral();
+        }
+        else if (match("{")) { //mutil import
+            lex();
+            while(lookahead->type == Token::Identifier) {
+                ids.push_back(parseVariableIdentifier());
+                if (match(",")) {
+                    lex();
+                }
+                else break;
+            }
+            expect("}");
+            expectKeyword("from");
+            srcfile = (StringLiteral*)parseLiteral();
+        }
+        else {
+            throwError(lookahead, Messages::UnexpectedToken);
+        }
+        
+        return wtf.close(delegate.createImportStatement(ids, srcfile));
+    }
+    
+    ExportStatement *parseExportStatement() {
+        WrapTrackingFunction wtf(*this);
+        std::vector<Identifier*> ids;
+        
+        expectKeyword("export");
+        
+        //only suport: export default {}
+        {
+            WrapTrackingFunction wtf_id(*this);
+            expectKeyword("default");
+            ids.push_back(wtf_id.close(delegate.createIdentifier("default")));
+        }
+        
+        Expression* exp = parsePrimaryExpression();
+        
+        return wtf.close(delegate.createExportStatement(ids, exp));
+    }
+    
     // 14 Program
 
     Statement *parseSourceElement() {
@@ -3435,6 +3536,16 @@ void Visitor::visitChildren(ForInStatement *node) {
 }
 
 void Visitor::visitChildren(DebuggerStatement *) {
+}
+
+void Visitor::visitChildren(ImportStatement *node) {
+    ::visit(this, node->dientifiers);
+    ::visit(this, node->source);
+}
+
+void Visitor::visitChildren(ExportStatement *node) {
+    ::visit(this, node->dientifiers);
+    ::visit(this, node->exp);
 }
 
 void Visitor::visitChildren(FunctionDeclaration *node) {
