@@ -1589,7 +1589,7 @@ struct EsprimaParser {
     Property *parseObjectProperty() {
         WrapTrackingFunction wtf(*this);
         EsprimaToken *token;
-        Expression *key;
+        Expression *key = nullptr;
         Expression *id, *value;
         std::vector<Identifier *> param;
 
@@ -1602,14 +1602,18 @@ struct EsprimaParser {
             // Property Assignment: Getter and Setter.
 
             if (token->stringValue == "get" && !match(":")) {
-                key = parseObjectPropertyKey();
+                if (!match("(")) {
+                    key = parseObjectPropertyKey();
+                }
                 expect("(");
                 expect(")");
                 value = parsePropertyFunction(param, NULL);
                 return wtf.close(delegate.createProperty("get", key, value));
             }
             if (token->stringValue == "set" && !match(":")) {
-                key = parseObjectPropertyKey();
+                if (!match("(")) {
+                    key = parseObjectPropertyKey();
+                }
                 expect("(");
                 token = lookahead;
                 if (token->type != Token::Identifier) {
@@ -1638,6 +1642,18 @@ struct EsprimaParser {
                 else {
                     value = parseAssignmentExpression();
                 }
+            }
+            else if (match("(")) { //is function
+                expect("(");
+                token = lookahead;
+                while (!match(")")) {
+                    if (lookahead->type != Token::Identifier) {
+                        expect(",");
+                    }
+                    param.push_back(parseVariableIdentifier());
+                }
+                expect(")");
+                value = parsePropertyFunction(param, token);
             }
             else {
                 value = delegate.createIdentifier(token->stringValue);
@@ -1668,7 +1684,10 @@ struct EsprimaParser {
         while (!match("}")) {
             property = parseObjectProperty();
 
-            if (property->key->is<Identifier>()) {
+            if (property->key == nullptr) {
+                name = "default";
+            }
+            else if (property->key->is<Identifier>()) {
                 name = property->key->as<Identifier>()->name;
             } else if (property->key->is<StringLiteral>()) {
                 name = property->key->as<StringLiteral>()->value;
