@@ -86,6 +86,7 @@ namespace esprima {
     struct NullLiteral;
     struct RegExpLiteral;
     struct StringLiteral;
+    struct TemplateLiteral;
     struct NumericLiteral;
     struct BooleanLiteral;
 
@@ -134,6 +135,7 @@ namespace esprima {
         virtual void visit(NullLiteral *node) = 0;
         virtual void visit(RegExpLiteral *node) = 0;
         virtual void visit(StringLiteral *node) = 0;
+        virtual void visit(TemplateLiteral *node) = 0;
         virtual void visit(NumericLiteral *node) = 0;
         virtual void visit(BooleanLiteral *node) = 0;
 
@@ -181,6 +183,7 @@ namespace esprima {
         void visitChildren(NullLiteral *node);
         void visitChildren(RegExpLiteral *node);
         void visitChildren(StringLiteral *node);
+        void visitChildren(TemplateLiteral *node);
         void visitChildren(NumericLiteral *node);
         void visitChildren(BooleanLiteral *node);
     };
@@ -521,6 +524,12 @@ namespace esprima {
     struct StringLiteral : Literal {
         std::string value;
         StringLiteral(Pool &pool) : Literal(pool) {}
+        void accept(Visitor *visitor) { visitor->visit(this); }
+    };
+
+    struct TemplateLiteral : Literal {
+        std::string value;
+        TemplateLiteral(Pool &pool) : Literal(pool) {}
         void accept(Visitor *visitor) { visitor->visit(this); }
     };
 

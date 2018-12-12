@@ -50,7 +50,8 @@ namespace Token {
         NullLiteral = 5,
         NumericLiteral = 6,
         Punctuator = 7,
-        StringLiteral = 8
+        StringLiteral = 8,
+        TemplateLiteral = 9
     };
 }
 
@@ -66,6 +67,7 @@ namespace Messages {
     static const char *UnexpectedToken = "Unexpected token %0";
     static const char *UnexpectedNumber = "Unexpected number";
     static const char *UnexpectedString = "Unexpected string";
+    static const char *UnexpectedTemplate = "Unexpected template";
     static const char *UnexpectedIdentifier = "Unexpected identifier";
     static const char *UnexpectedReserved = "Unexpected reserved word";
     static const char *UnexpectedEOS = "Unexpected end of input";
@@ -741,14 +743,20 @@ struct EsprimaParser {
 
     // 7.8.4 String Literals
 
-    EsprimaToken *scanStringLiteral() {
+    EsprimaToken *scanStringLiteral(bool asTemplate = false) {
         std::string str = "";
         int quote, start, ch, code, unescaped, restore;
         bool octal = false;
 
         quote = source[index];
-        assert((quote == '\'' || quote == '"') &&
-            "String literal must starts with a quote");
+        if (asTemplate) {
+            assert((quote == '`') &&
+                   "String literal must starts with a quote");
+        }
+        else {
+            assert((quote == '\'' || quote == '"') &&
+                   "String literal must starts with a quote");
+        }
 
         start = index;
         ++index;
@@ -838,7 +846,7 @@ struct EsprimaParser {
         }
 
         EsprimaToken *token = new EsprimaToken(pool);
-        token->type = Token::StringLiteral;
+        token->type = asTemplate ? Token::TemplateLiteral : Token::StringLiteral;
         token->stringValue = str;
         token->octal = octal;
         token->lineNumber = lineNumber;
@@ -981,6 +989,9 @@ struct EsprimaParser {
         // String literal starts with single quote (#39) or double quote (#34).
         if (ch == 39 || ch == 34) {
             return scanStringLiteral();
+        }
+        else if (ch == '`') {
+            return scanStringLiteral(true);
         }
 
         if (isIdentifierStart(ch)) {
@@ -1196,6 +1207,10 @@ struct EsprimaParser {
                 return node;
             } else if (token->type == Token::StringLiteral) {
                 StringLiteral *node = new StringLiteral(parser.pool);
+                node->value = token->stringValue;
+                return node;
+            } else if (token->type == Token::TemplateLiteral) {
+                TemplateLiteral *node = new TemplateLiteral(parser.pool);
                 node->value = token->stringValue;
                 return node;
             } else if (token->type == Token::BooleanLiteral) {
@@ -1415,6 +1430,10 @@ struct EsprimaParser {
 
         if (token->type == Token::StringLiteral) {
             throwError(token, Messages::UnexpectedString);
+        }
+
+        if (token->type == Token::TemplateLiteral) {
+            throwError(token, Messages::UnexpectedTemplate);
         }
 
         if (token->type == Token::Identifier) {
@@ -1764,7 +1783,7 @@ struct EsprimaParser {
             return wtf.close(delegate.createIdentifier(lex()->stringValue));
         }
 
-        if (type == Token::StringLiteral || type == Token::NumericLiteral) {
+        if (type == Token::StringLiteral || type == Token::TemplateLiteral || type == Token::NumericLiteral) {
             if (strict && lookahead->octal) {
                 throwError(lookahead, Messages::StrictOctalLiteral);
             }
@@ -3664,6 +3683,9 @@ void Visitor::visitChildren(RegExpLiteral *) {
 }
 
 void Visitor::visitChildren(StringLiteral *) {
+}
+
+void Visitor::visitChildren(TemplateLiteral *) {
 }
 
 void Visitor::visitChildren(NumericLiteral *) {

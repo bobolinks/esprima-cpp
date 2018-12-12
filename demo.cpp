@@ -64,6 +64,7 @@ struct DumpVisitor : esprima::Visitor {
   DUMP(NullLiteral, NONE)
   DUMP(RegExpLiteral, (PROP(pattern), PROP(flags)))
   DUMP(StringLiteral, PROP(value))
+  DUMP(TemplateLiteral, PROP(value))
   DUMP(NumericLiteral, PROP(value))
   DUMP(BooleanLiteral, PROP(value))
 };
