@@ -32,7 +32,8 @@ namespace esprima {
     struct Position : Poolable {
         int line;
         int column;
-        Position(Pool &pool) : Poolable(pool), line(), column() {}
+        int offset;
+        Position(Pool &pool) : Poolable(pool), line(), column(), offset() {}
     };
 
     struct SourceLocation {
@@ -359,14 +360,14 @@ namespace esprima {
     };
 
     struct ImportStatement : Statement {
-        std::vector<Identifier *> dientifiers;
+        std::vector<Identifier *> identifiers;
         StringLiteral* source;
         ImportStatement(Pool &pool) : Statement(pool) {}
         void accept(Visitor *visitor) { visitor->visit(this); }
     };
     
     struct ExportStatement : Statement {
-        std::vector<Identifier *> dientifiers;
+        std::vector<Identifier *> identifiers;
         Expression* exp;
         ExportStatement(Pool &pool) : Statement(pool) {}
         void accept(Visitor *visitor) { visitor->visit(this); }
@@ -524,7 +525,7 @@ namespace esprima {
     };
 
     struct NumericLiteral : Literal {
-        double value;
+        std::string value;
         NumericLiteral(Pool &pool) : Literal(pool), value() {}
         void accept(Visitor *visitor) { visitor->visit(this); }
     };

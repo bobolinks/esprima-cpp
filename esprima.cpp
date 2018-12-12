@@ -118,13 +118,13 @@ static std::string format(std::string format, const std::string &arg0, const std
 struct EsprimaToken : Poolable {
     Token::Type type;
     std::string stringValue;
-    double doubleValue;
     bool octal;
     int lineNumber;
     int lineStart;
+    int offset;
     int range[2];
 
-    EsprimaToken(Pool &pool) : Poolable(pool), type(), doubleValue(), octal(), lineNumber(), lineStart() { range[0] = range[1] = 0; }
+    EsprimaToken(Pool &pool) : Poolable(pool), type(), octal(), lineNumber(), lineStart(), offset() { range[0] = range[1] = 0; }
 };
 
 struct EsprimaParser {
@@ -635,7 +635,7 @@ struct EsprimaParser {
 
         EsprimaToken *token = new EsprimaToken(pool);
         token->type = Token::NumericLiteral;
-        std::stringstream(number) >> std::hex >> token->doubleValue;
+        std::stringstream(number) >> token->stringValue;
         token->lineNumber = lineNumber;
         token->lineStart = lineStart;
         token->range[0] = start; token->range[1] = index;
@@ -657,7 +657,7 @@ struct EsprimaParser {
 
         EsprimaToken *token = new EsprimaToken(pool);
         token->type = Token::NumericLiteral;
-        std::stringstream(number) >> std::oct >> token->doubleValue;
+        std::stringstream(number) >> token->stringValue;
         token->octal = true;
         token->lineNumber = lineNumber;
         token->lineStart = lineStart;
@@ -732,7 +732,7 @@ struct EsprimaParser {
 
         EsprimaToken *token = new EsprimaToken(pool);
         token->type = Token::NumericLiteral;
-        std::stringstream(number) >> token->doubleValue;
+        std::stringstream(number) >> token->stringValue;
         token->lineNumber = lineNumber;
         token->lineStart = lineStart;
         token->range[0] = start; token->range[1] = index;
@@ -1189,7 +1189,7 @@ struct EsprimaParser {
         Literal *createLiteral(EsprimaToken *token) {
             if (token->type == Token::NumericLiteral) {
                 NumericLiteral *node = new NumericLiteral(parser.pool);
-                node->value = token->doubleValue;
+                node->value = token->stringValue;
                 return node;
             } else if (token->type == Token::NullLiteral) {
                 NullLiteral *node = new NullLiteral(parser.pool);
@@ -1347,14 +1347,14 @@ struct EsprimaParser {
         
         ImportStatement *createImportStatement(const std::vector<Identifier *>& ids, StringLiteral* source) {
             ImportStatement *node = new ImportStatement(parser.pool);
-            node->dientifiers = ids;
+            node->identifiers = ids;
             node->source = source;
             return node;
         }
 
         ExportStatement *createExportStatement(const std::vector<Identifier *>& ids, Expression* exp) {
             ExportStatement *node = new ExportStatement(parser.pool);
-            node->dientifiers = ids;
+            node->identifiers = ids;
             node->exp = exp;
             return node;
         }
@@ -1605,6 +1605,7 @@ struct EsprimaParser {
                 if (!match("(")) {
                     key = parseObjectPropertyKey();
                 }
+                else key = id;
                 expect("(");
                 expect(")");
                 value = parsePropertyFunction(param, NULL);
@@ -1614,6 +1615,7 @@ struct EsprimaParser {
                 if (!match("(")) {
                     key = parseObjectPropertyKey();
                 }
+                else key = id;
                 expect("(");
                 token = lookahead;
                 if (token->type != Token::Identifier) {
@@ -3235,6 +3237,7 @@ struct EsprimaParser {
             range[1] = parser.index;
             loc->end->line = parser.lineNumber;
             loc->end->column = parser.index - parser.lineStart;
+            loc->end->offset = parser.index;
         }
 
         void applyGroup(Node *node) {
@@ -3257,9 +3260,11 @@ struct EsprimaParser {
         marker->loc->start = new Position(pool);
         marker->loc->start->line = lineNumber;
         marker->loc->start->column = index - lineStart;
+        marker->loc->start->offset = index;
         marker->loc->end = new Position(pool);
         marker->loc->end->line = lineNumber;
         marker->loc->end->column = index - lineStart;
+        marker->loc->end->offset = index;
 
         return marker;
     }
@@ -3558,12 +3563,12 @@ void Visitor::visitChildren(DebuggerStatement *) {
 }
 
 void Visitor::visitChildren(ImportStatement *node) {
-    ::visit(this, node->dientifiers);
+    ::visit(this, node->identifiers);
     ::visit(this, node->source);
 }
 
 void Visitor::visitChildren(ExportStatement *node) {
-    ::visit(this, node->dientifiers);
+    ::visit(this, node->identifiers);
     ::visit(this, node->exp);
 }
 
