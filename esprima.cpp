@@ -1567,7 +1567,7 @@ struct EsprimaParser {
 
     // 11.1.5 Object Initialiser
 
-    FunctionExpression *parsePropertyFunction(const std::vector<Identifier *> &param, EsprimaToken *first) {
+    FunctionExpression *parsePropertyFunction(Identifier *id, const std::vector<Identifier *> &param, EsprimaToken *first) {
         WrapTrackingFunction wtf(*this);
         bool previousStrict;
         BlockStatement *body;
@@ -1578,7 +1578,7 @@ struct EsprimaParser {
             throwError(first, Messages::StrictParamName);
         }
         strict = previousStrict;
-        return wtf.close(delegate.createFunctionExpression(NULL, param, body));
+        return wtf.close(delegate.createFunctionExpression(id, param, body));
     }
 
     Expression *parseObjectPropertyKey() {
@@ -1624,17 +1624,15 @@ struct EsprimaParser {
                 if (!match("(")) {
                     key = parseObjectPropertyKey();
                 }
-                else key = id;
                 expect("(");
                 expect(")");
-                value = parsePropertyFunction(param, NULL);
+                value = parsePropertyFunction((key?key:id)->as<Identifier>(), param, NULL);
                 return wtf.close(delegate.createProperty("get", key, value));
             }
             if (token->stringValue == "set" && !match(":")) {
                 if (!match("(")) {
                     key = parseObjectPropertyKey();
                 }
-                else key = id;
                 expect("(");
                 token = lookahead;
                 if (token->type != Token::Identifier) {
@@ -1642,7 +1640,7 @@ struct EsprimaParser {
                 }
                 param.push_back(parseVariableIdentifier());
                 expect(")");
-                value = parsePropertyFunction(param, token);
+                value = parsePropertyFunction((key?key:id)->as<Identifier>(), param, token);
                 return wtf.close(delegate.createProperty("set", key, value));
             }
             if (match(":")) {
@@ -1658,7 +1656,7 @@ struct EsprimaParser {
                         param.push_back(parseVariableIdentifier());
                     }
                     expect(")");
-                    value = parsePropertyFunction(param, token);
+                    value = parsePropertyFunction(nullptr, param, token);
                 }
                 else {
                     value = parseAssignmentExpression();
@@ -1674,7 +1672,8 @@ struct EsprimaParser {
                     param.push_back(parseVariableIdentifier());
                 }
                 expect(")");
-                value = parsePropertyFunction(param, token);
+                value = parsePropertyFunction(id->as<Identifier>(), param, token);
+                return wtf.close(delegate.createProperty("function", id, value));
             }
             else {
                 value = delegate.createIdentifier(token->stringValue);
