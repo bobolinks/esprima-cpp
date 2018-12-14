@@ -1686,7 +1686,7 @@ struct EsprimaParser {
                     token = lookahead;
                     while (!match(")")) {
                         if (lookahead->type != Token::Identifier) {
-                            throwUnexpected(lex());
+                            expect(",");
                         }
                         param.push_back(parseVariableIdentifier());
                     }
