@@ -517,6 +517,7 @@ struct EsprimaParser {
                     if (source[index] == 61) {
                         ++index;
                     }
+                        
                     token = new EsprimaToken(pool);
                     token->type = Token::Punctuator;
                     token->stringValue = source.substr(start, index - start);
@@ -527,6 +528,28 @@ struct EsprimaParser {
 
                 default:
                     break;
+                }
+            }
+            else if (code2 == '>') {
+                switch (code) {
+                    case 61: // =
+                        index += 2;
+                        
+                        // =>
+                        if (source[index] == 61) {
+                            ++index;
+                        }
+                        
+                        token = new EsprimaToken(pool);
+                        token->type = Token::Punctuator;
+                        token->stringValue = source.substr(start, index - start);
+                        token->lineNumber = lineNumber;
+                        token->lineStart = lineStart;
+                        token->range[0] = start; token->range[1] = index;
+                        return token;
+                        
+                    default:
+                        break;
                 }
             }
             break;
@@ -1176,6 +1199,18 @@ struct EsprimaParser {
             return node;
         }
 
+        ArrowFunctionExpression *createArrowFunctionExpression(Expression *params, Node *body) {
+            ArrowFunctionExpression *node = new ArrowFunctionExpression(parser.pool);
+            node->params = params;
+            if (body->is<BlockStatement>()) {
+                node->block = body->as<BlockStatement>();
+            }
+            else {
+                node->expr = body->as<Expression>();
+            }
+            return node;
+        }
+        
         Identifier *createIdentifier(const std::string &name) {
             Identifier *node = new Identifier(parser.pool);
             node->name = name;
@@ -1770,7 +1805,7 @@ struct EsprimaParser {
     }
 
     // 11.1 Primary Expressions
-
+    
     Expression *parsePrimaryExpression() {
         WrapTrackingFunction wtf(*this);
         int type;
@@ -1779,7 +1814,13 @@ struct EsprimaParser {
         type = lookahead->type;
 
         if (type == Token::Identifier) {
-            return wtf.close(delegate.createIdentifier(lex()->stringValue));
+            Expression* expr = delegate.createIdentifier(lex()->stringValue);
+            if (match("=>")) {
+                return wtf.close(parseArrowFunctionExpression(expr));
+            }
+            else {
+                return wtf.close(expr);
+            }
         }
 
         if (type == Token::StringLiteral || type == Token::TemplateLiteral || type == Token::NumericLiteral) {
@@ -1819,13 +1860,34 @@ struct EsprimaParser {
         }
 
         if (match("(")) {
-            return wtf.close(parseGroupExpression());
+            int pos, line, start;
+            pos = index;
+            line = lineNumber;
+            start = lineStart;
+            token = lex();
+            if (match(")")) { //arrow exp
+                lex();
+                return wtf.close(parseArrowFunctionExpression(nullptr));
+            }
+            else {//restore context
+                index = pos;
+                lineNumber = line;
+                lineStart = start;
+                lookahead = token;
+                Expression* expr = parseGroupExpression();
+                if (match("=>")) { //arrow exp
+                    return wtf.close(parseArrowFunctionExpression(expr));
+                }
+                else {
+                    return wtf.close(expr);
+                }
+            }
         }
 
         if (match("/") || match("/=")) {
             return wtf.close(delegate.createLiteral(scanRegExp()));
         }
-
+        
         throwUnexpected(lex());
     }
 
@@ -3121,6 +3183,24 @@ struct EsprimaParser {
         strict = previousStrict;
 
         return wtf.close(delegate.createFunctionExpression(id, params, body));
+    }
+
+    // undocumented impl
+    Expression *parseArrowFunctionExpression(Expression* params) {
+        WrapTrackingFunction wtf(*this);
+        BlockStatement *block = nullptr;
+        Expression *expr = nullptr;
+        
+        expect("=>");
+        
+        if (match("{")) {
+            block = parseFunctionSourceElements();
+        }
+        else {
+            expr = parseAssignmentExpression();
+        }
+        
+        return wtf.close(delegate.createArrowFunctionExpression(params, block ? block->as<Node>() : expr->as<Node>()));
     }
 
     ImportStatement *parseImportStatement() {

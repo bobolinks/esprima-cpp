@@ -51,6 +51,7 @@ struct DumpVisitor : esprima::Visitor {
   DUMP(Property, PROP(kind))
   DUMP(ObjectExpression, NONE)
   DUMP(FunctionExpression, NONE)
+  DUMP(ArrowFunctionExpression, NONE)
   DUMP(SequenceExpression, NONE)
   DUMP(UnaryExpression, (PROP(operator_), PROP(prefix)))
   DUMP(BinaryExpression, PROP(operator_))

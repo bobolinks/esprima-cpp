@@ -73,6 +73,7 @@ namespace esprima {
     struct Property;
     struct ObjectExpression;
     struct FunctionExpression;
+    struct ArrowFunctionExpression;
     struct SequenceExpression;
     struct UnaryExpression;
     struct BinaryExpression;
@@ -122,6 +123,7 @@ namespace esprima {
         virtual void visit(Property *node) = 0;
         virtual void visit(ObjectExpression *node) = 0;
         virtual void visit(FunctionExpression *node) = 0;
+        virtual void visit(ArrowFunctionExpression *node) = 0;
         virtual void visit(SequenceExpression *node) = 0;
         virtual void visit(UnaryExpression *node) = 0;
         virtual void visit(BinaryExpression *node) = 0;
@@ -170,6 +172,7 @@ namespace esprima {
         void visitChildren(Property *node);
         void visitChildren(ObjectExpression *node);
         void visitChildren(FunctionExpression *node);
+        void visitChildren(ArrowFunctionExpression *node);
         void visitChildren(SequenceExpression *node);
         void visitChildren(UnaryExpression *node);
         void visitChildren(BinaryExpression *node);
@@ -426,6 +429,16 @@ namespace esprima {
 
     struct FunctionExpression : Expression, Function {
         FunctionExpression(Pool &pool) : Expression(pool) {}
+        void accept(Visitor *visitor) { visitor->visit(this); }
+    };
+
+    struct ArrowFunctionExpression : Expression {
+        Expression *params;
+        union {
+            Expression*     expr;
+            BlockStatement* block;
+        };
+        ArrowFunctionExpression(Pool &pool) : Expression(pool) {}
         void accept(Visitor *visitor) { visitor->visit(this); }
     };
 
