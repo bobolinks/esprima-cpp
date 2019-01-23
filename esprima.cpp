@@ -31,6 +31,7 @@
 #include "esprima.h"
 #include <stdarg.h>
 #include <sstream>
+#include <stack>
 #include <set>
 #include <map>
 #undef EOF
@@ -1432,17 +1433,14 @@ struct EsprimaParser {
     void throwError(EsprimaToken *token, const std::string &msg) __attribute__((noreturn)) {
         ParseError error;
 
+        error.description = msg;
+        error.scope = scopes.top().type + " " + scopes.top().name;
+        
         if (token) {
-            std::stringstream ss;
-            ss << "Line " << token->lineNumber << ": " << msg;
-            error.description = ss.str();
             error.index = token->range[0];
             error.lineNumber = token->lineNumber;
             error.column = token->range[0] - lineStart + 1;
         } else {
-            std::stringstream ss;
-            ss << "Line " << lineNumber << ": " << msg;
-            error.description = ss.str();
             error.index = index;
             error.lineNumber = lineNumber;
             error.column = index - lineStart + 1;
@@ -1659,6 +1657,7 @@ struct EsprimaParser {
                 if (!match("(")) {
                     key = parseObjectPropertyKey();
                 }
+                AutoScope scope(*this, "function", (key?key:id)->as<Identifier>()->name.c_str());
                 expect("(");
                 expect(")");
                 value = parsePropertyFunction((key?key:id)->as<Identifier>(), param, NULL);
@@ -1668,6 +1667,7 @@ struct EsprimaParser {
                 if (!match("(")) {
                     key = parseObjectPropertyKey();
                 }
+                AutoScope scope(*this, "function", (key?key:id)->as<Identifier>()->name.c_str());
                 expect("(");
                 token = lookahead;
                 if (token->type != Token::Identifier) {
@@ -1681,6 +1681,7 @@ struct EsprimaParser {
             if (match(":")) {
                 lex();
                 if (matchKeyword("function")) {
+                    AutoScope scope(*this, "function", id->as<Identifier>()->name.c_str());
                     lex();
                     expect("(");
                     token = lookahead;
@@ -1698,6 +1699,7 @@ struct EsprimaParser {
                 }
             }
             else if (match("(")) { //is function
+                AutoScope scope(*this, "function", id->as<Identifier>()->name.c_str());
                 expect("(");
                 token = lookahead;
                 while (!match(")")) {
@@ -3112,6 +3114,8 @@ struct EsprimaParser {
             }
         }
 
+        AutoScope scope(*this, "function", id->name.c_str());
+
         tmp = parseParams(firstRestricted);
         params = tmp->params;
         stricted = tmp->stricted;
@@ -3163,6 +3167,8 @@ struct EsprimaParser {
                 }
             }
         }
+
+        AutoScope scope(*this, "function", id ? id->name.c_str() : "unnamed");
 
         tmp = parseParams(firstRestricted);
         params = tmp->params;
@@ -3317,6 +3323,7 @@ struct EsprimaParser {
     }
 
     Program *parseProgram() {
+        AutoScope scope(*this, "program", "");
         WrapTrackingFunction wtf(*this);
         std::vector<Statement *> body;
         strict = false;
@@ -3544,6 +3551,24 @@ struct EsprimaParser {
     SyntaxTreeDelegate delegate;
     EsprimaToken *lookahead;
     State state;
+    
+    //scope locations
+    struct Scope {
+        std::string type;
+        std::string name;
+        Scope(const char* t, const char* n) : type(t), name(n) {}
+    };
+    
+    struct AutoScope {
+        AutoScope(EsprimaParser& parser, const char* t, const char* n) : scopes(parser.scopes) {
+            scopes.push(Scope(t, n));
+        }
+        ~AutoScope() {
+            scopes.pop();
+        }
+        std::stack<Scope>&  scopes;
+    };
+    std::stack<Scope>   scopes;
 
     EsprimaParser(Pool &pool) : pool(pool), strict(), index(), lineNumber(), lineStart(), length(), delegate(*this), lookahead() {}
 };

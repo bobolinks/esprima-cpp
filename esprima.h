@@ -560,6 +560,7 @@ namespace esprima {
     
     struct ParseError {
         std::string description;
+        std::string scope;
         int index;
         int lineNumber;
         int column;
