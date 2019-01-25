@@ -68,6 +68,7 @@ namespace esprima {
     struct FunctionDeclaration;
     struct VariableDeclarator;
     struct VariableDeclaration;
+    struct ArgumentDeclaration;
     struct ThisExpression;
     struct ArrayExpression;
     struct Property;
@@ -118,6 +119,7 @@ namespace esprima {
         virtual void visit(FunctionDeclaration *node) = 0;
         virtual void visit(VariableDeclarator *node) = 0;
         virtual void visit(VariableDeclaration *node) = 0;
+        virtual void visit(ArgumentDeclaration *node) = 0;
         virtual void visit(ThisExpression *node) = 0;
         virtual void visit(ArrayExpression *node) = 0;
         virtual void visit(Property *node) = 0;
@@ -167,6 +169,7 @@ namespace esprima {
         void visitChildren(FunctionDeclaration *node);
         void visitChildren(VariableDeclarator *node);
         void visitChildren(VariableDeclaration *node);
+        void visitChildren(ArgumentDeclaration *node);
         void visitChildren(ThisExpression *node);
         void visitChildren(ArrayExpression *node);
         void visitChildren(Property *node);
@@ -238,7 +241,7 @@ namespace esprima {
     // This is a mixin, not a base class, and so isn't poolable
     struct Function {
         Identifier *id;
-        std::vector<Identifier *> params;
+        ArgumentDeclaration* params;
         BlockStatement *body;
         Function() : id(), body() {}
     };
@@ -399,6 +402,12 @@ namespace esprima {
         std::vector<VariableDeclarator *> declarations;
         std::string kind;
         VariableDeclaration(Pool &pool) : Declaration(pool) {}
+        void accept(Visitor *visitor) { visitor->visit(this); }
+    };
+
+    struct ArgumentDeclaration : Declaration {
+        std::vector<VariableDeclarator *> declarations;
+        ArgumentDeclaration(Pool &pool) : Declaration(pool) {}
         void accept(Visitor *visitor) { visitor->visit(this); }
     };
 

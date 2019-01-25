@@ -340,7 +340,7 @@ struct EsprimaParser {
         for (i = 0; i < len; ++i) {
             if (index < length && isHexDigit(source[index])) {
                 ch = source[index++];
-                code = code * 16 + std::string("0123456789abcdef").find(tolower(ch));
+                code = code * 16 + (int)std::string("0123456789abcdef").find(tolower(ch));
             } else {
                 return -1;
             }
@@ -1184,7 +1184,7 @@ struct EsprimaParser {
             return node;
         }
 
-        FunctionDeclaration *createFunctionDeclaration(Identifier *id, const std::vector<Identifier *> &params, BlockStatement *body) {
+        FunctionDeclaration *createFunctionDeclaration(Identifier *id, ArgumentDeclaration *params, BlockStatement *body) {
             FunctionDeclaration *node = new FunctionDeclaration(parser.pool);
             node->id = id;
             node->params = params;
@@ -1192,7 +1192,7 @@ struct EsprimaParser {
             return node;
         }
 
-        FunctionExpression *createFunctionExpression(Identifier *id, const std::vector<Identifier *> &params, BlockStatement *body) {
+        FunctionExpression *createFunctionExpression(Identifier *id, ArgumentDeclaration *params, BlockStatement *body) {
             FunctionExpression *node = new FunctionExpression(parser.pool);
             node->id = id;
             node->params = params;
@@ -1372,6 +1372,12 @@ struct EsprimaParser {
             VariableDeclaration *node = new VariableDeclaration(parser.pool);
             node->declarations = declarations;
             node->kind = kind;
+            return node;
+        }
+
+        ArgumentDeclaration *createArgumentDeclaration(const std::vector<VariableDeclarator *> &declarations) {
+            ArgumentDeclaration *node = new ArgumentDeclaration(parser.pool);
+            node->declarations = declarations;
             return node;
         }
 
@@ -1600,14 +1606,14 @@ struct EsprimaParser {
 
     // 11.1.5 Object Initialiser
 
-    FunctionExpression *parsePropertyFunction(Identifier *id, const std::vector<Identifier *> &param, EsprimaToken *first) {
+    FunctionExpression *parsePropertyFunction(Identifier *id, ArgumentDeclaration *param, EsprimaToken *first) {
         WrapTrackingFunction wtf(*this);
         bool previousStrict;
         BlockStatement *body;
 
         previousStrict = strict;
         body = parseFunctionSourceElements();
-        if (first && strict && isRestrictedWord(param[0]->name)) {
+        if (first && strict && isRestrictedWord(param->declarations[0]->id->name)) {
             throwError(first, Messages::StrictParamName);
         }
         strict = previousStrict;
@@ -1643,7 +1649,7 @@ struct EsprimaParser {
         EsprimaToken *token;
         Expression *key = nullptr;
         Expression *id, *value;
-        std::vector<Identifier *> param;
+        ArgumentDeclaration* params = nullptr;
 
         token = lookahead;
 
@@ -1660,7 +1666,7 @@ struct EsprimaParser {
                 AutoScope scope(*this, "function", (key?key:id)->as<Identifier>()->name.c_str());
                 expect("(");
                 expect(")");
-                value = parsePropertyFunction((key?key:id)->as<Identifier>(), param, NULL);
+                value = parsePropertyFunction((key?key:id)->as<Identifier>(), nullptr, nullptr);
                 return wtf.close(delegate.createProperty("get", key, value));
             }
             if (token->stringValue == "set" && !match(":")) {
@@ -1673,9 +1679,9 @@ struct EsprimaParser {
                 if (token->type != Token::Identifier) {
                     throwUnexpected(lex());
                 }
-                param.push_back(parseVariableIdentifier());
+                params = parseArgumentDeclaration();
                 expect(")");
-                value = parsePropertyFunction((key?key:id)->as<Identifier>(), param, token);
+                value = parsePropertyFunction((key?key:id)->as<Identifier>(), params, token);
                 return wtf.close(delegate.createProperty("set", key, value));
             }
             if (match(":")) {
@@ -1685,14 +1691,11 @@ struct EsprimaParser {
                     lex();
                     expect("(");
                     token = lookahead;
-                    while (!match(")")) {
-                        if (lookahead->type != Token::Identifier) {
-                            expect(",");
-                        }
-                        param.push_back(parseVariableIdentifier());
+                    if (!match(")")) {
+                        params = parseArgumentDeclaration();
                     }
                     expect(")");
-                    value = parsePropertyFunction(nullptr, param, token);
+                    value = parsePropertyFunction(nullptr, params, token);
                 }
                 else {
                     value = parseAssignmentExpression();
@@ -1702,14 +1705,11 @@ struct EsprimaParser {
                 AutoScope scope(*this, "function", id->as<Identifier>()->name.c_str());
                 expect("(");
                 token = lookahead;
-                while (!match(")")) {
-                    if (lookahead->type != Token::Identifier) {
-                        expect(",");
-                    }
-                    param.push_back(parseVariableIdentifier());
+                if (!match(")")) {
+                    params = parseArgumentDeclaration();
                 }
                 expect(")");
-                value = parsePropertyFunction(id->as<Identifier>(), param, token);
+                value = parsePropertyFunction(id->as<Identifier>(), params, token);
                 return wtf.close(delegate.createProperty("function", id, value));
             }
             else {
@@ -1810,7 +1810,7 @@ struct EsprimaParser {
     
     Expression *parsePrimaryExpression() {
         WrapTrackingFunction wtf(*this);
-        int type;
+        Token::Type type;
         EsprimaToken *token;
 
         type = lookahead->type;
@@ -2196,7 +2196,7 @@ struct EsprimaParser {
         state.allowIn = previousAllowIn;
 
         // Final reduce to clean-up the stack.
-        i = expressionStack.size() - 1;
+        i = int(expressionStack.size() - 1);
         expr = expressionStack[i];
         while (i > 0) {
             expr = delegate.createBinaryExpression(operatorStack[i - 1]->stringValue, expressionStack[i - 1], expr);
@@ -2375,6 +2375,12 @@ struct EsprimaParser {
         return delegate.createVariableDeclaration(declarations, "var");
     }
 
+    ArgumentDeclaration *parseArgumentDeclaration() {
+        std::vector<VariableDeclarator *> declarations = parseVariableDeclarationList("");
+        
+        return delegate.createArgumentDeclaration(declarations);
+    }
+    
     // kind may be `const` or `let`
     // Both are experimental and not in the specification yet.
     // see http://wiki.ecmascript.org/doku.php?id=harmony:const
@@ -2498,8 +2504,8 @@ struct EsprimaParser {
     Statement *parseForStatement() {
         Node *init;
         Expression *test, *update;
-        Node *left;
-        Expression *right;
+        Node *left = nullptr;
+        Expression *right = nullptr;
         Statement *body;
         bool oldInIteration;
         bool leftIsUndefined = true;
@@ -2963,7 +2969,7 @@ struct EsprimaParser {
         std::vector<Statement *> sourceElements;
         EsprimaToken *token;
         std::string directive;
-        EsprimaToken *firstRestricted;
+        EsprimaToken *firstRestricted = nullptr;
         std::set<std::string> oldLabelSet;
         bool oldInIteration, oldInSwitch, oldInFunctionBody;
 
@@ -3026,17 +3032,19 @@ struct EsprimaParser {
     }
 
     struct ParseParams {
-        std::vector<Identifier *> params;
+        ArgumentDeclaration* params;
         EsprimaToken *stricted;
         EsprimaToken *firstRestricted;
         std::string message;
     };
 
     ParseParams *parseParams(EsprimaToken *firstRestricted) {
-        Identifier *param;
-        std::vector<Identifier *> params;
+        WrapTrackingFunction wtf_arg(*this);
+
+        Identifier *id = nullptr;
+        std::vector<VariableDeclarator *> params;
         EsprimaToken *token;
-        EsprimaToken *stricted;
+        EsprimaToken *stricted = nullptr;
         std::set<std::string> paramSet;
         std::string message;
         expect("(");
@@ -3045,7 +3053,8 @@ struct EsprimaParser {
             paramSet = std::set<std::string>();
             while (index < length) {
                 token = lookahead;
-                param = parseVariableIdentifier();
+                WrapTrackingFunction wtf(*this);
+                id = parseVariableIdentifier();
                 if (strict) {
                     if (isRestrictedWord(token->stringValue)) {
                         stricted = token;
@@ -3067,6 +3076,12 @@ struct EsprimaParser {
                         message = Messages::StrictParamDupe;
                     }
                 }
+                Expression *init = nullptr;
+                if (match("=")) {
+                    lex();
+                    init = parseAssignmentExpression();
+                }
+                VariableDeclarator* param = wtf.close(delegate.createVariableDeclarator(id, init));
                 params.push_back(param);
                 paramSet.insert(token->stringValue);
                 if (match(")")) {
@@ -3079,7 +3094,7 @@ struct EsprimaParser {
         expect(")");
 
         ParseParams *result = new ParseParams;
-        result->params = params;
+        result->params = wtf_arg.close(delegate.createArgumentDeclaration(params));
         result->stricted = stricted;
         result->firstRestricted = firstRestricted;
         result->message = message;
@@ -3089,11 +3104,11 @@ struct EsprimaParser {
     FunctionDeclaration *parseFunctionDeclaration() {
         WrapTrackingFunction wtf(*this);
         Identifier *id;
-        std::vector<Identifier *>params;
+        ArgumentDeclaration *params;
         BlockStatement *body;
         EsprimaToken *token, *stricted;
         ParseParams *tmp;
-        EsprimaToken *firstRestricted;
+        EsprimaToken *firstRestricted = nullptr;
         std::string message;
         bool previousStrict;
 
@@ -3141,10 +3156,10 @@ struct EsprimaParser {
         WrapTrackingFunction wtf(*this);
         EsprimaToken *token;
         Identifier *id = NULL;
-        EsprimaToken *stricted, *firstRestricted;
+        EsprimaToken *stricted, *firstRestricted = nullptr;
         std::string message;
         ParseParams *tmp;
-        std::vector<Identifier *> params;
+        ArgumentDeclaration *params;
         BlockStatement *body;
         bool previousStrict;
 
@@ -3285,7 +3300,7 @@ struct EsprimaParser {
         std::vector<Statement *> sourceElements;
         EsprimaToken *token;
         std::string directive;
-        EsprimaToken *firstRestricted;
+        EsprimaToken *firstRestricted = nullptr;
 
         while (index < length) {
             token = lookahead;
@@ -3466,9 +3481,9 @@ struct EsprimaParser {
         visitBinary(left);
         visitBinary(right);
 
-        if (left->groupRange || right->groupRange) {
-            int start = left->groupRange ? left->groupRange[0] : left->range[0];
-            int end = right->groupRange ? right->groupRange[1] : right->range[1];
+        if (left->groupRange[0] || right->groupRange[1]) {
+            int start = left->groupRange[0] ? left->groupRange[0] : left->range[0];
+            int end = right->groupRange[1] ? right->groupRange[1] : right->range[1];
             node->range[0] = start; node->range[1] = end;
         } else if (!node->range[1]) {
             int start = left->range[0];
@@ -3525,7 +3540,7 @@ struct EsprimaParser {
         index = 0;
         lineNumber = (source.size() > 0) ? 1 : 0;
         lineStart = 0;
-        length = source.size();
+        length = (int)source.size();
         lookahead = NULL;
         state = State();
 
@@ -3707,6 +3722,10 @@ void Visitor::visitChildren(VariableDeclarator *node) {
 }
 
 void Visitor::visitChildren(VariableDeclaration *node) {
+    ::visit(this, node->declarations);
+}
+
+void Visitor::visitChildren(ArgumentDeclaration *node) {
     ::visit(this, node->declarations);
 }
 
