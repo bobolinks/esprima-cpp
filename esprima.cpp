@@ -2929,6 +2929,8 @@ struct EsprimaParser {
                 return wtf.close(parseTryStatement());
             if (value == "var")
                 return wtf.close(parseVariableStatement());
+            if (value == "let")
+                return parseConstLetDeclaration("let");
             if (value == "while")
                 return wtf.close(parseWhileStatement());
             if (value == "with")
