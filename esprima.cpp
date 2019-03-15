@@ -219,6 +219,7 @@ struct EsprimaParser {
             (id == "if") ||
             (id == "in") ||
             (id == "do") ||
+            (id == "of") ||
             (id == "var") ||
             (id == "for") ||
             (id == "new") ||
@@ -1184,6 +1185,14 @@ struct EsprimaParser {
             return node;
         }
 
+        ForOfStatement *createForOfStatement(Node *left, Expression *right, Statement *body) {
+            ForOfStatement *node = new ForOfStatement(parser.pool);
+            node->left = left;
+            node->right = right;
+            node->body = body;
+            return node;
+        }
+        
         FunctionDeclaration *createFunctionDeclaration(Identifier *id, ArgumentDeclaration *params, BlockStatement *body) {
             FunctionDeclaration *node = new FunctionDeclaration(parser.pool);
             node->id = id;
@@ -2496,7 +2505,7 @@ struct EsprimaParser {
     VariableDeclaration *parseForVariableDeclaration() {
         WrapTrackingFunction wtf(*this);
         EsprimaToken *token = lex();
-        std::vector<VariableDeclarator *> declarations = parseVariableDeclarationList("var");
+        std::vector<VariableDeclarator *> declarations = parseVariableDeclarationList(token->stringValue); // is let or var
 
         return wtf.close(delegate.createVariableDeclaration(declarations, token->stringValue));
     }
@@ -2509,6 +2518,7 @@ struct EsprimaParser {
         Statement *body;
         bool oldInIteration;
         bool leftIsUndefined = true;
+        bool isOfStatement = false;
 
         init = test = update = NULL;
 
@@ -2524,7 +2534,7 @@ struct EsprimaParser {
                 init = parseForVariableDeclaration();
                 state.allowIn = true;
 
-                if (init->as<VariableDeclaration>()->declarations.size() == 1 && matchKeyword("in")) {
+                if (init->as<VariableDeclaration>()->declarations.size() == 1 && (matchKeyword("in") || (isOfStatement = matchKeyword("of")))) {
                     lex();
                     left = init;
                     leftIsUndefined = false;
@@ -2536,7 +2546,7 @@ struct EsprimaParser {
                 init = parseExpression();
                 state.allowIn = true;
 
-                if (matchKeyword("in")) {
+                if (matchKeyword("in") || (isOfStatement = matchKeyword("of")) ) {
                     // LeftHandSideExpression
                     if (!isLeftHandSide(init)) {
                         throwError(NULL, Messages::InvalidLHSInForIn);
@@ -2578,7 +2588,7 @@ struct EsprimaParser {
 
         return (leftIsUndefined) ?
                 static_cast<Statement *>(delegate.createForStatement(init, test, update, body)) :
-                static_cast<Statement *>(delegate.createForInStatement(left, right, body));
+                (isOfStatement ? static_cast<Statement *>(delegate.createForOfStatement(left, right, body)) : static_cast<Statement *>(delegate.createForInStatement(left, right, body)));
     }
 
     // 12.7 The continue statement
@@ -3694,6 +3704,12 @@ void Visitor::visitChildren(ForStatement *node) {
 }
 
 void Visitor::visitChildren(ForInStatement *node) {
+    ::visit(this, node->left);
+    ::visit(this, node->right);
+    ::visit(this, node->body);
+}
+
+void Visitor::visitChildren(ForOfStatement *node) {
     ::visit(this, node->left);
     ::visit(this, node->right);
     ::visit(this, node->body);

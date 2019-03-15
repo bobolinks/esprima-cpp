@@ -62,6 +62,7 @@ namespace esprima {
     struct DoWhileStatement;
     struct ForStatement;
     struct ForInStatement;
+    struct ForOfStatement;
     struct DebuggerStatement;
     struct ImportStatement;
     struct ExportStatement;
@@ -113,6 +114,7 @@ namespace esprima {
         virtual void visit(DoWhileStatement *node) = 0;
         virtual void visit(ForStatement *node) = 0;
         virtual void visit(ForInStatement *node) = 0;
+        virtual void visit(ForOfStatement *node) = 0;
         virtual void visit(DebuggerStatement *node) = 0;
         virtual void visit(ImportStatement *node) = 0;
         virtual void visit(ExportStatement *node) = 0;
@@ -163,6 +165,7 @@ namespace esprima {
         void visitChildren(DoWhileStatement *node);
         void visitChildren(ForStatement *node);
         void visitChildren(ForInStatement *node);
+        void visitChildren(ForOfStatement *node);
         void visitChildren(DebuggerStatement *node);
         void visitChildren(ImportStatement *node);
         void visitChildren(ExportStatement *node);
@@ -360,6 +363,14 @@ namespace esprima {
         Expression *right;
         Statement *body;
         ForInStatement(Pool &pool) : Statement(pool), left(), right(), body() {}
+        void accept(Visitor *visitor) { visitor->visit(this); }
+    };
+
+    struct ForOfStatement : Statement {
+        Node *left; // Either a VariableDeclaration or an Expression
+        Expression *right;
+        Statement *body;
+        ForOfStatement(Pool &pool) : Statement(pool), left(), right(), body() {}
         void accept(Visitor *visitor) { visitor->visit(this); }
     };
 

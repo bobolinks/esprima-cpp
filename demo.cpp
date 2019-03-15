@@ -42,6 +42,7 @@ struct DumpVisitor : esprima::Visitor {
   DUMP(DoWhileStatement, NONE)
   DUMP(ForStatement, NONE)
   DUMP(ForInStatement, NONE)
+  DUMP(ForOfStatement, NONE)
   DUMP(DebuggerStatement, NONE)
   DUMP(FunctionDeclaration, NONE)
   DUMP(VariableDeclarator, NONE)
