@@ -6,6 +6,7 @@
 #include <vector>
 
 // API from https://developer.mozilla.org/en-US/docs/SpiderMonkey/Parser_API
+// and https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference
 
 namespace esprima {
 
@@ -76,6 +77,7 @@ namespace esprima {
     struct ObjectExpression;
     struct FunctionExpression;
     struct ArrowFunctionExpression;
+    struct AsyncFunctionExpression;
     struct SequenceExpression;
     struct UnaryExpression;
     struct BinaryExpression;
@@ -84,6 +86,7 @@ namespace esprima {
     struct LogicalExpression;
     struct ConditionalExpression;
     struct NewExpression;
+    struct AwaitExpression;
     struct CallExpression;
     struct MemberExpression;
     struct NullLiteral;
@@ -128,6 +131,7 @@ namespace esprima {
         virtual void visit(ObjectExpression *node) = 0;
         virtual void visit(FunctionExpression *node) = 0;
         virtual void visit(ArrowFunctionExpression *node) = 0;
+        virtual void visit(AsyncFunctionExpression *node) = 0;
         virtual void visit(SequenceExpression *node) = 0;
         virtual void visit(UnaryExpression *node) = 0;
         virtual void visit(BinaryExpression *node) = 0;
@@ -136,6 +140,7 @@ namespace esprima {
         virtual void visit(LogicalExpression *node) = 0;
         virtual void visit(ConditionalExpression *node) = 0;
         virtual void visit(NewExpression *node) = 0;
+        virtual void visit(AwaitExpression *node) = 0;
         virtual void visit(CallExpression *node) = 0;
         virtual void visit(MemberExpression *node) = 0;
         virtual void visit(NullLiteral *node) = 0;
@@ -179,6 +184,7 @@ namespace esprima {
         void visitChildren(ObjectExpression *node);
         void visitChildren(FunctionExpression *node);
         void visitChildren(ArrowFunctionExpression *node);
+        void visitChildren(AsyncFunctionExpression *node);
         void visitChildren(SequenceExpression *node);
         void visitChildren(UnaryExpression *node);
         void visitChildren(BinaryExpression *node);
@@ -187,6 +193,7 @@ namespace esprima {
         void visitChildren(LogicalExpression *node);
         void visitChildren(ConditionalExpression *node);
         void visitChildren(NewExpression *node);
+        void visitChildren(AwaitExpression *node);
         void visitChildren(CallExpression *node);
         void visitChildren(MemberExpression *node);
         void visitChildren(NullLiteral *node);
@@ -462,6 +469,12 @@ namespace esprima {
         void accept(Visitor *visitor) { visitor->visit(this); }
     };
 
+    struct AsyncFunctionExpression : Expression {
+        FunctionExpression *expr;
+        AsyncFunctionExpression(Pool &pool) : Expression(pool) {}
+        void accept(Visitor *visitor) { visitor->visit(this); }
+    };
+
     struct SequenceExpression : Expression {
         std::vector<Expression *> expressions;
         SequenceExpression(Pool &pool) : Expression(pool) {}
@@ -520,6 +533,12 @@ namespace esprima {
         Expression *callee;
         std::vector<Expression *> arguments;
         NewExpression(Pool &pool) : Expression(pool), callee() {}
+        void accept(Visitor *visitor) { visitor->visit(this); }
+    };
+
+    struct AwaitExpression : Expression {
+        Expression *expr;
+        AwaitExpression(Pool &pool) : Expression(pool) {}
         void accept(Visitor *visitor) { visitor->visit(this); }
     };
 

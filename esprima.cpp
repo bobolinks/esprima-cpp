@@ -232,6 +232,8 @@ struct EsprimaParser {
             (id == "with") ||
             (id == "enum") ||
             (id == "from") ||
+            (id == "async") ||
+            (id == "await") ||
             (id == "while") ||
             (id == "break") ||
             (id == "catch") ||
@@ -1221,6 +1223,12 @@ struct EsprimaParser {
             return node;
         }
         
+        AsyncFunctionExpression *createAsyncFunctionExpression(FunctionExpression *expr) {
+            AsyncFunctionExpression *node = new AsyncFunctionExpression(parser.pool);
+            node->expr = expr;
+            return node;
+        }
+        
         Identifier *createIdentifier(const std::string &name) {
             Identifier *node = new Identifier(parser.pool);
             node->name = name;
@@ -1289,6 +1297,12 @@ struct EsprimaParser {
             return node;
         }
 
+        AwaitExpression *createAwaitExpression(Expression *expr) {
+            AwaitExpression *node = new AwaitExpression(parser.pool);
+            node->expr = expr;
+            return node;
+        }
+        
         ObjectExpression *createObjectExpression(const std::vector<Property *> &properties) {
             ObjectExpression *node = new ObjectExpression(parser.pool);
             node->properties = properties;
@@ -1847,6 +1861,15 @@ struct EsprimaParser {
                 return wtf.close(delegate.createThisExpression());
             }
 
+            if (matchKeyword("async")) {
+                lex();
+                return wtf.close(delegate.createAsyncFunctionExpression(parseFunctionExpression()));
+            }
+
+            if (matchKeyword("await")) {
+                return wtf.close(parseAwaitExpression());
+            }
+            
             if (matchKeyword("function")) {
                 return wtf.close(parseFunctionExpression());
             }
@@ -1966,6 +1989,16 @@ struct EsprimaParser {
         return wtf.close(delegate.createNewExpression(callee, args));
     }
 
+    AwaitExpression *parseAwaitExpression() {
+        WrapTrackingFunction wtf(*this);
+        Expression *expr;
+        
+        expectKeyword("await");
+        expr = parseExpression();
+        
+        return wtf.close(delegate.createAwaitExpression(expr));
+    }
+    
     Expression *parseLeftHandSideExpressionAllowCall() {
         WrapTrackingFunction wtf(*this);
         return wtf.close(trackLeftHandSideExpressionAllowCall());
@@ -3769,6 +3802,20 @@ void Visitor::visitChildren(FunctionExpression *node) {
     ::visit(this, node->body);
 }
 
+void Visitor::visitChildren(ArrowFunctionExpression *node) {
+    ::visit(this, node->params);
+    if (node->block->is<esprima::BlockStatement>()) {
+        ::visit(this, node->block);
+    }
+    else {
+        ::visit(this, node->expr);
+    }
+}
+
+void Visitor::visitChildren(AsyncFunctionExpression *node) {
+    ::visit(this, node->expr);
+}
+
 void Visitor::visitChildren(SequenceExpression *node) {
     ::visit(this, node->expressions);
 }
@@ -3805,6 +3852,10 @@ void Visitor::visitChildren(ConditionalExpression *node) {
 void Visitor::visitChildren(NewExpression *node) {
     ::visit(this, node->callee);
     ::visit(this, node->arguments);
+}
+
+void Visitor::visitChildren(AwaitExpression *node) {
+    ::visit(this, node->expr);
 }
 
 void Visitor::visitChildren(CallExpression *node) {
