@@ -861,7 +861,7 @@ struct EsprimaParser {
                         ++index;
                     }
                 }
-            } else if (isLineTerminator(ch)) {
+            } else if (!asTemplate && isLineTerminator(ch)) {
                 break;
             } else {
                 str += ch;
