@@ -70,6 +70,7 @@ namespace esprima {
     struct FunctionDeclaration;
     struct VariableDeclarator;
     struct VariableDeclaration;
+    struct VariablePackDeclaration;
     struct ArgumentDeclaration;
     struct ThisExpression;
     struct ArrayExpression;
@@ -124,6 +125,7 @@ namespace esprima {
         virtual void visit(FunctionDeclaration *node) = 0;
         virtual void visit(VariableDeclarator *node) = 0;
         virtual void visit(VariableDeclaration *node) = 0;
+        virtual void visit(VariablePackDeclaration *node) = 0;
         virtual void visit(ArgumentDeclaration *node) = 0;
         virtual void visit(ThisExpression *node) = 0;
         virtual void visit(ArrayExpression *node) = 0;
@@ -177,6 +179,7 @@ namespace esprima {
         void visitChildren(FunctionDeclaration *node);
         void visitChildren(VariableDeclarator *node);
         void visitChildren(VariableDeclaration *node);
+        void visitChildren(VariablePackDeclaration *node);
         void visitChildren(ArgumentDeclaration *node);
         void visitChildren(ThisExpression *node);
         void visitChildren(ArrayExpression *node);
@@ -374,7 +377,7 @@ namespace esprima {
     };
 
     struct ForOfStatement : Statement {
-        Node *left; // Either a VariableDeclaration or an Expression
+        Node *left; // Either a VariableDeclaration or a VariablePackDeclaration or an Expression
         Expression *right;
         Statement *body;
         ForOfStatement(Pool &pool) : Statement(pool), left(), right(), body() {}
@@ -420,6 +423,13 @@ namespace esprima {
         std::vector<VariableDeclarator *> declarations;
         std::string kind;
         VariableDeclaration(Pool &pool) : Declaration(pool) {}
+        void accept(Visitor *visitor) { visitor->visit(this); }
+    };
+
+    struct VariablePackDeclaration : Declaration {
+        std::vector<Identifier *> identifiers;
+        std::string kind;
+        VariablePackDeclaration(Pool &pool) : Declaration(pool) {}
         void accept(Visitor *visitor) { visitor->visit(this); }
     };
 

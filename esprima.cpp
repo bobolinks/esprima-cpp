@@ -1398,6 +1398,13 @@ struct EsprimaParser {
             return node;
         }
 
+        VariablePackDeclaration *createVariablePackDeclaration(const std::vector<Identifier *> &identifiers, const std::string &kind) {
+            VariablePackDeclaration *node = new VariablePackDeclaration(parser.pool);
+            node->identifiers = identifiers;
+            node->kind = kind;
+            return node;
+        }
+
         ArgumentDeclaration *createArgumentDeclaration(const std::vector<VariableDeclarator *> &declarations) {
             ArgumentDeclaration *node = new ArgumentDeclaration(parser.pool);
             node->declarations = declarations;
@@ -2405,6 +2412,20 @@ struct EsprimaParser {
         return list;
     }
 
+    std::vector<Identifier *> parseVariablePackDeclarationList() {
+        std::vector<Identifier *> list;
+        
+        do {
+            list.push_back(parseVariableIdentifier());
+            if (!match(",")) {
+                break;
+            }
+            lex();
+        } while (index < length);
+        
+        return list;
+    }
+    
     VariableDeclaration *parseVariableStatement() {
         std::vector<VariableDeclarator *> declarations;
 
@@ -2562,17 +2583,37 @@ struct EsprimaParser {
         if (match(";")) {
             lex();
         } else {
-            if (matchKeyword("var") || matchKeyword("let")) {
-                state.allowIn = false;
-                init = parseForVariableDeclaration();
-                state.allowIn = true;
-
-                if (init->as<VariableDeclaration>()->declarations.size() == 1 && (matchKeyword("in") || (isOfStatement = matchKeyword("of")))) {
+            if (matchKeyword("var") || matchKeyword("let") || matchKeyword("const")) {
+                EsprimaToken *token = lex();
+                if (match("[")) {
                     lex();
-                    left = init;
-                    leftIsUndefined = false;
-                    right = parseExpression();
-                    init = NULL;
+                    WrapTrackingFunction wtf_loc(*this);
+                    std::vector<Identifier *> declarations = parseVariablePackDeclarationList(); // is let or var or const
+                    init = wtf_loc.close(delegate.createVariablePackDeclaration(declarations, token->stringValue));
+                    expect("]");
+                    expectKeyword("of");
+                    isOfStatement = true;
+                    if (init->as<VariablePackDeclaration>()->identifiers.size() >= 1) {
+                        left = init;
+                        leftIsUndefined = false;
+                        right = parseExpression();
+                        init = NULL;
+                    }
+                }
+                else {
+                    state.allowIn = false;
+                    WrapTrackingFunction wtf_loc(*this);
+                    std::vector<VariableDeclarator *> declarations = parseVariableDeclarationList(token->stringValue); // is let or var or const
+                    init = wtf_loc.close(delegate.createVariableDeclaration(declarations, token->stringValue));
+                    state.allowIn = true;
+
+                    if (init->as<VariableDeclaration>()->declarations.size() == 1 && (matchKeyword("in") || (isOfStatement = matchKeyword("of")))) {
+                        lex();
+                        left = init;
+                        leftIsUndefined = false;
+                        right = parseExpression();
+                        init = NULL;
+                    }
                 }
             } else {
                 state.allowIn = false;
@@ -3774,6 +3815,10 @@ void Visitor::visitChildren(VariableDeclarator *node) {
 
 void Visitor::visitChildren(VariableDeclaration *node) {
     ::visit(this, node->declarations);
+}
+
+void Visitor::visitChildren(VariablePackDeclaration *node) {
+    ::visit(this, node->identifiers);
 }
 
 void Visitor::visitChildren(ArgumentDeclaration *node) {

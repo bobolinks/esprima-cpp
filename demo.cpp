@@ -47,6 +47,7 @@ struct DumpVisitor : esprima::Visitor {
   DUMP(FunctionDeclaration, NONE)
   DUMP(VariableDeclarator, NONE)
   DUMP(VariableDeclaration, PROP(kind))
+  DUMP(VariablePackDeclaration, PROP(kind))
   DUMP(ArgumentDeclaration)
   DUMP(ThisExpression, NONE)
   DUMP(ArrayExpression, NONE)
