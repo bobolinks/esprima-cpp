@@ -2377,7 +2377,7 @@ struct EsprimaParser {
         return wtf.close(delegate.createIdentifier(token->stringValue));
     }
 
-    VariableDeclarator *parseVariableDeclaration(const std::string &kind) {
+    VariableDeclarator *parseVariableDeclaration(const std::string &kind, bool inFor = false) {
         WrapTrackingFunction wtf(*this);
         Identifier *id = parseVariableIdentifier();
         Expression *init = NULL;
@@ -2388,8 +2388,10 @@ struct EsprimaParser {
         }
 
         if (kind == "const") {
-            expect("=");
-            init = parseAssignmentExpression();
+            if (!inFor) {
+                expect("=");
+                init = parseAssignmentExpression();
+            }
         } else if (match("=")) {
             lex();
             init = parseAssignmentExpression();
@@ -2398,11 +2400,11 @@ struct EsprimaParser {
         return wtf.close(delegate.createVariableDeclarator(id, init));
     }
 
-    std::vector<VariableDeclarator *> parseVariableDeclarationList(const std::string &kind) {
+    std::vector<VariableDeclarator *> parseVariableDeclarationList(const std::string &kind, bool inFor = false) {
         std::vector<VariableDeclarator *> list;
 
         do {
-            list.push_back(parseVariableDeclaration(kind));
+            list.push_back(parseVariableDeclaration(kind, inFor));
             if (!match(",")) {
                 break;
             }
@@ -2603,7 +2605,7 @@ struct EsprimaParser {
                 else {
                     state.allowIn = false;
                     WrapTrackingFunction wtf_loc(*this);
-                    std::vector<VariableDeclarator *> declarations = parseVariableDeclarationList(token->stringValue); // is let or var or const
+                    std::vector<VariableDeclarator *> declarations = parseVariableDeclarationList(token->stringValue, true); // is let or var or const
                     init = wtf_loc.close(delegate.createVariableDeclaration(declarations, token->stringValue));
                     state.allowIn = true;
 
